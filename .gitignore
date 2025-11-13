@@ -1,38 +1,6 @@
-
-# R + RStudio
 .Rhistory
-.RData
 .Rproj.user/
-.Ruserdata
-.Rproj
-.Rapp.history
-
-# Mac & system junk
+report/*.docx
+report/*.pdf
+report/figures/
 .DS_Store
-Thumbs.db
-
-# Environment files
-.env
-
-# Build outputs
-*.html
-*.pdf
-*.log
-*.tmp
-*.Rout
-
-# Data outputs
-/data/processed/*
-/figures/*
-/report/*.html
-/report/*.pdf
-
-# Docker build cache
-*.tar
-*.img
-*.log
-__pycache__/
-
-# VSCode / Editor cache
-.vscode/
-.idea/
