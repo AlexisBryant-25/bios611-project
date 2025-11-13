@@ -23,14 +23,10 @@ podman run -d -p 8787:8787 -v $(pwd):/home/rstudio/project:Z bios611-project
 
 # 4. Knit the report
 make all
-
+```
 
 Environment fully defined in Containerfile
-
 Automated builds with Makefile
-
 Primary analysis in src/analysis.Rmd
-
 Figures in report/figures/
-
 Data in /data/
