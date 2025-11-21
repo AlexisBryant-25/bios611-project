@@ -48,6 +48,19 @@ glimpse(raw)
 
 > **Vibe check:** This is a cross-sectional, self-reported survey of students aged 16–25 across multiple countries. We’re going to keep it real: associations ≠ causation. Think “signals,” not “destiny.”
 
+## Dataset at a glance
+
+- **Source:** Kaggle “Student Social Media Addiction” survey (included locally as `Data/students_social_media_addiction.csv`).
+- **Unit of observation:** Individual student (ages 16–25) with self-reported behaviors and outcomes.
+- **Key fields:**
+  - `avg_daily_usage_hours` (numeric): Daily social media hours.
+  - `sleep_hours_per_night` (numeric): Typical nightly sleep duration.
+  - `mental_health_score` (1–10): Self-rated well-being.
+  - `addicted_score` (1–10): Perceived addiction intensity.
+  - `conflicts_over_social_media` (count): Disagreements linked to social media.
+  - Demographics: `age`, `gender`, `academic_level`, `country`, `relationship_status`.
+- **Aim:** Characterize usage patterns, health/academic correlates, and risk profiles; build interpretable models and cluster-based personas.
+
 # 1) Framing the journey
 
 **Goal:** Tell a coherent story while flexing many BIOS 611 skills.
