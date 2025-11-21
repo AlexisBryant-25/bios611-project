@@ -1,7 +1,17 @@
 .Rhistory
 .Rproj.user/
+.RData
+.DS_Store
+.env
 report/*.docx
 report/*.pdf
 report/figures/
+<<<<<<< ours
 .DS_Store
 Report/social_media_analysis.html
+=======
+Report/figure/
+Report/social_media_analysis_files/
+Report/social_media_analysis.html
+Report/social_media_analysis.pdf
+>>>>>>> theirs
