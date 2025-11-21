@@ -1,14 +1,13 @@
 # BIOS 611 Final Project
 
 ### Description
-<<<<<<< ours
 This project analyzes student social media addiction data using clustering and regression methods taught in BIOS 611.
 It builds a reproducible R environment with RStudio using Podman and includes a Makefile for automation.
 
 ### Quick Start
 =======
 This project analyzes student social media addiction data using clustering and regression methods taught in BIOS 611. It provides a fully reproducible RStudio environment, a Makefile-driven workflow, and clear instructions for reproducing the report artifacts.
->>>>>>> theirs
+
 
 ### Quick Start (containerized RStudio)
 ```bash
@@ -29,8 +28,8 @@ podman run -d -p 8787:8787 -v $(pwd):/home/rstudio/project:Z --name bios611-proj
 # 4. Open http://localhost:8787 in your browser
 # Login with: user = rstudio, password = rstudio
 
-<<<<<<< ours
-# 4. Knit the report (uses data in Data/students_social_media_addiction.csv)
+
+# 5. Knit the report (uses data in Data/students_social_media_addiction.csv)
 make all
 ```
 
@@ -76,5 +75,3 @@ Environment:
 3. `docker run -d -p 8787:8787 -v $(pwd):/home/rstudio/project:Z bios611-project`
 4. `make clean report-html` to generate the HTML report (or `make report-pdf` for PDF)
 
-The container plus Makefile guarantee consistent behavior across environments while keeping build artifacts out of version control.
->>>>>>> theirs
