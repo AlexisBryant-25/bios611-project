@@ -10,7 +10,7 @@ output:
     theme: flatly
     df_print: paged
 params:
-  data_path: "/mnt/data/Students Social Media Addiction (2).csv"
+  data_path: "Data/students_social_media_addiction.csv"
 ---
 
 ```{r setup, include=FALSE}
@@ -25,7 +25,7 @@ set.seed(611)
 need <- c("tidyverse","lubridate","janitor","skimr","gt","ggridges","GGally",
           "tidymodels","vip","glmnet","ranger","xgboost","pROC","yardstick",
           "patchwork","broom","broom.mixed","MASS","splines","mgcv",
-          "FactoMineR","factoextra","cluster","fpc","ggtext","naniar","ggthemes","scales")
+          "FactoMineR","factoextra","cluster","fpc","ggtext","naniar","ggthemes","scales","glue")
 
 to_install <- need[!need %in% installed.packages()[,"Package"]]
 if(length(to_install)) install.packages(to_install, repos = "https://cloud.r-project.org")
@@ -35,7 +35,7 @@ library(gt); library(ggridges); library(GGally); library(tidymodels); library(vi
 library(glmnet); library(ranger); library(xgboost); library(yardstick); library(pROC)
 library(patchwork); library(broom); library(MASS); library(splines); library(mgcv)
 library(FactoMineR); library(factoextra); library(cluster); library(fpc); library(naniar)
-library(ggthemes); library(scales)
+library(ggthemes); library(scales); library(glue)
 
 theme_set(ggthemes::theme_few(base_size = 12))
 ```
@@ -103,6 +103,8 @@ naniar::gg_miss_var(df) + ggtitle("Where are the gaps? (Missingness by variable)
 skimr::skim(df %>% select(-student_id))
 ```
 
+> **Quality check:** The skim output is a quick audit for data surprises. If you see heavy missingness in any driver (e.g., sleep hours), note it in the write-up and consider sensitivity checks that drop or impute those rows.
+
 # 3) Warm-up EDA (descriptives & effective visuals)
 
 ```{r}
@@ -114,6 +116,15 @@ p2 <- ggplot(df, aes(x = sleep_hours_per_night)) +
 p3 <- ggplot(df, aes(x = mental_health_score)) +
   geom_histogram(bins = 10) + labs(x = "Mental Health Score (1–10)", y = "Count", title = "Self-rated mental well-being")
 p1 / p2 / p3
+```
+
+```{r}
+# Quick correlation snapshot (helps anchor later models)
+df %>%
+  select(avg_daily_usage_hours, sleep_hours_per_night, mental_health_score, conflicts_over_social_media) %>%
+  drop_na() %>%
+  GGally::ggcorr(label = TRUE, hjust = 0.9, size = 3.2) +
+  labs(title = "Linear correlations among key outcomes/exposures")
 ```
 
 ```{r}
@@ -223,6 +234,18 @@ metrics
 ```
 
 ```{r}
+# Interpret RMSE/RSQ in plain English
+mh_take <- metrics %>%
+  select(.metric, .estimate) %>%
+  mutate(comment = case_when(
+    .metric == "rmse" ~ "Average prediction error (on the original 1–10 scale). Lower = better.",
+    .metric == "rsq"  ~ "Variance explained by the model. Values >0.2 are often useful for noisy survey data.",
+    TRUE ~ ""
+  ))
+gt(mh_take) %>% tab_header(title = md("**Mental health model performance (test set)**"))
+```
+
+```{r}
 # Coefficients (non-zero)
 lasso_fit <- final_lasso %>% extract_fit_parsnip()
 coef_mat <- as.matrix(coef(lasso_fit$fit, s = lasso_fit$fit$lambdaOpt))
@@ -252,6 +275,16 @@ AIC(m_pois); AIC(m_nb)
 broom::tidy(m_nb, exponentiate = TRUE, conf.int = TRUE) %>%
   arrange(desc(estimate)) %>% head(12) %>%
   gt() %>% tab_header(title = md("**Rate Ratios for Conflicts (NegBin)**"))
+```
+
+```{r}
+# Narrative summary for conflicts
+rr_usage <- broom::tidy(m_nb, exponentiate = TRUE, conf.int = TRUE) %>%
+  filter(term == "avg_daily_usage_hours") %>%
+  transmute(
+    message = glue::glue("Each +1 hour of daily use is associated with a {round(estimate,2)}x higher expected conflict count (95% CI {round(conf.low,2)}–{round(conf.high,2)}).")
+  )
+rr_usage$message
 ```
 
 > **Interpretation game plan:** Translate slopes into real terms (e.g., “+1 hr usage ≈ −0.18 hrs sleep”), call out heterogeneity by level, and mention overdispersion choice.
@@ -287,6 +320,27 @@ sil_vec <- map_dbl(2:8, ~{
 })
 best_k <- which.max(sil_vec) + 1
 best_k
+```
+
+```{r}
+# Compact cluster diagnostics and plain-language handles
+km_summary <- df_clusters %>%
+  group_by(cluster) %>%
+  summarise(
+    n = n(),
+    usage = mean(avg_daily_usage_hours),
+    sleep = mean(sleep_hours_per_night),
+    mh = mean(mental_health_score),
+    conflicts = mean(conflicts_over_social_media),
+    addiction = mean(addicted_score, na.rm=TRUE),
+    acad_yes = mean(affects_academic_performance == "Yes", na.rm=TRUE)
+  ) %>%
+  mutate(label = case_when(
+    usage >= max(usage) & sleep <= min(sleep) ~ "High use / low sleep",
+    usage <= min(usage) & mh >= max(mh) ~ "Low use / thriving",
+    TRUE ~ "Moderate mix"
+  ))
+km_summary %>% gt() %>% tab_header(title = md("**Cluster profiles (name + averages)**"))
 ```
 
 ```{r}
@@ -425,6 +479,19 @@ perf_lasso <- eval_model(final_lasso, test)
 perf_rf    <- eval_model(final_rf, test)
 
 perf_glm; perf_lasso; perf_rf
+```
+
+```{r}
+# Side-by-side model comparison
+model_cards <- bind_rows(
+  bind_cols(model = "Baseline GLM", tibble::enframe(perf_glm) %>% unnest_wider(value)),
+  bind_cols(model = "LASSO", tibble::enframe(perf_lasso) %>% unnest_wider(value)),
+  bind_cols(model = "Random Forest", tibble::enframe(perf_rf) %>% unnest_wider(value))
+) %>%
+  select(model, .metric, .estimate) %>%
+  arrange(desc(.metric), desc(.estimate))
+
+model_cards %>% gt() %>% tab_header(title = md("**High-addiction prediction: metric dashboard**"))
 ```
 
 ```{r}
