@@ -8,7 +8,8 @@ LABEL description="BIOS611 project environment with RStudio"
 
 # Install system libraries and R packages
 RUN apt-get update -qq && apt-get install -y \
-    libxml2-dev libssl-dev libcurl4-openssl-dev libxt-dev libpng-dev libjpeg-dev && \
+    libxml2-dev libssl-dev libcurl4-openssl-dev libxt-dev libpng-dev libjpeg-dev \
+    texlive-latex-base texlive-latex-recommended texlive-fonts-recommended texlive-latex-extra && \
     R -e "install.packages(c('tidyverse','caret','glmnet','cluster','factoextra','rmarkdown','knitr','GGally','patchwork','plotly','viridis','gridExtra'))" && \
     apt-get clean
 
