@@ -5,7 +5,6 @@ This project analyzes student social media addiction data using clustering and r
 It builds a reproducible R environment with RStudio using Podman and includes a Makefile for automation.
 
 ### Quick Start
-=======
 This project analyzes student social media addiction data using clustering and regression methods taught in BIOS 611. It provides a fully reproducible RStudio environment, a Makefile-driven workflow, and clear instructions for reproducing the report artifacts.
 
 
