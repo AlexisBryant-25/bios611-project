@@ -9,8 +9,6 @@ output:
     number_sections: true
     theme: flatly
     df_print: paged
-params:
-  data_path: "Data/students_social_media_addiction.csv"
 ---
 
 ```{r setup, include=FALSE}
@@ -18,10 +16,9 @@ knitr::opts_chunk$set(message = FALSE, warning = FALSE, fig.width = 8, fig.heigh
 set.seed(611)
 ```
 
-# 0) Load packages & data
+### Load packages & data
 
 ```{r}
-# Helper to install if missing
 need <- c("tidyverse","lubridate","janitor","skimr","gt","ggridges","GGally",
           "tidymodels","vip","glmnet","ranger","xgboost","pROC","yardstick",
           "patchwork","broom","broom.mixed","MASS","splines","mgcv",
@@ -41,119 +38,121 @@ theme_set(ggthemes::theme_few(base_size = 12))
 ```
 
 ```{r}
-# Read data
-raw <- readr::read_csv(params$data_path) %>% clean_names()
+raw <- read_csv("Students Social Media Addiction .csv")
 glimpse(raw)
+summary (raw)
 ```
 
-> **Vibe check:** This is a cross-sectional, self-reported survey of students aged 16–25 across multiple countries. We’re going to keep it real: associations ≠ causation. Think “signals,” not “destiny.”
+This is a cross-sectional, self-reported survey of students aged 16–25 across multiple countries. So, associations ≠ causation. More like “signals,” not “destiny.”
 
-## Dataset at a glance
+## Data at a glance
 
-- **Source:** Kaggle “Student Social Media Addiction” survey (included locally as `Data/students_social_media_addiction.csv`).
-- **Unit of observation:** Individual student (ages 16–25) with self-reported behaviors and outcomes.
-- **Key fields:**
-  - `avg_daily_usage_hours` (numeric): Daily social media hours.
-  - `sleep_hours_per_night` (numeric): Typical nightly sleep duration.
-  - `mental_health_score` (1–10): Self-rated well-being.
-  - `addicted_score` (1–10): Perceived addiction intensity.
-  - `conflicts_over_social_media` (count): Disagreements linked to social media.
-  - Demographics: `age`, `gender`, `academic_level`, `country`, `relationship_status`.
-- **Aim:** Characterize usage patterns, health/academic correlates, and risk profiles; build interpretable models and cluster-based personas.
+-   **Source:** Kaggle “Student Social Media Addiction” survey (included locally as `Data/students_social_media_addiction.csv`).
 
-# 1) Framing the journey
+-   **Unit of observation:** Individual student (ages 16–25) with self-reported behaviors and outcomes.
 
-**Goal:** Tell a coherent story while flexing many BIOS 611 skills.
+-   **Key fields:**
 
-**Research Questions (RQs):**
-- **RQ1 – Health & Habits:** *How is average daily social media use associated with sleep and mental well-being across student subgroups?*  
-  Methods: descriptive viz → smoothing/splines → GLM/GAM with interactions → (bonus) count model for conflicts.
-- **RQ2 – Hidden Profiles:** *Do latent usage/well-being profiles emerge, and how do those profiles differ in outcomes (addiction, academic impact, conflicts)?*  
-  Methods: scaling → PCA → k-means & hierarchical clustering (Euclidean) + PAM (Gower) → profile comparisons → t-SNE/UMAP visualization.
-- **RQ3 – Risk & Prediction:** *Who is at risk of high addiction and perceived academic impact? Which factors matter most?*  
-  Methods: logistic GLM → LASSO → random forest / XGBoost; 10-fold CV; ROC/PR; calibration; feature importance; partial dependence.
+    -   `avg_daily_usage_hours` (numeric): Daily social media hours.
+    -   `sleep_hours_per_night` (numeric): Typical nightly sleep duration.
+    -   `mental_health_score` (1–10): Self-rated well-being.
+    -   `addicted_score` (1–10): Perceived addiction intensity.
+    -   `conflicts_over_social_media` (count): Disagreements linked to social media.
+    -   Demographics: `age`, `gender`, `academic_level`, `country`, `relationship_status`.
 
-> **Tone:** conversational with light humor. E.g., “Each extra hour online might be costing you ~X minutes of sleep — your pillow filed a complaint.”
+-   **Aim:** Characterize usage patterns, health/academic correlates, and risk profiles; build and interpret models and cluster-based personas.
 
-# 2) Data hygiene
+    <div>
+
+    <div>
+
+# Framing the Analysis
+
+**Goal:** Tell a coherent story while using many BIOS 611 skills.
+
+**Research Questions (RQs):** -
+
+**RQ1 – Health & Habits:** *How is average daily social media use associated with sleep and mental well-being?*\
+Methods: descriptive visualizations → smoothing/splines → GLM/GAM with interactions → (bonus) count model for conflicts.
+
+**RQ2 – Hidden Profiles:** *Do latent usage/well-being profiles emerge, and how do those profiles differ in outcomes (addiction, academic impact, conflicts)?*\
+Methods: scaling → PCA → k-means & hierarchical clustering (Euclidean) + PAM (Gower) → profile comparisons → t-SNE/UMAP visualization.
+
+**RQ3 – Risk & Prediction:** *Who is at risk of high addiction and perceived academic impact? Which factors matter most?*\
+Methods: logistic GLM → LASSO → random forest / XGBoost; 10-fold CV; ROC/PR; calibration; feature importance; partial dependence.
+
+# Data Cleaning
 
 ```{r}
 df <- raw %>%
   rename(
-    student_id = student_id,
-    age = age,
-    gender = gender,
-    academic_level = academic_level,
-    country = country,
-    avg_daily_usage_hours = avg_daily_usage_hours,
-    most_used_platform = most_used_platform,
-    affects_academic_performance = affects_academic_performance,
-    sleep_hours_per_night = sleep_hours_per_night,
-    mental_health_score = mental_health_score,
-    relationship_status = relationship_status,
-    conflicts_over_social_media = conflicts_over_social_media,
-    addicted_score = addicted_score
+    Student_ID = Student_ID,
+    Age = Age,
+    Gender = Gender,
+    Academic_Level = Academic_Level,
+    Country = Country,
+    Avg_Daily_Usage_Hours = Avg_Daily_Usage_Hours,
+    Most_Used_Platform = Most_Used_Platform,
+    Affects_Academic_Performance = Affects_Academic_Performance,
+    Sleep_Hours_Per_Night = Sleep_Hours_Per_Night,
+    Mental_Health_Score = Mental_Health_Score,
+    Relationship_Status = Relationship_Status,
+    Conflicts_Over_Social_Media = Conflicts_Over_Social_Media,
+    Addicted_Score = Addicted_Score
   ) %>%
   mutate(
-    gender = factor(gender),
-    academic_level = factor(academic_level, levels = c("High School","Undergraduate","Graduate")),
-    country = factor(country),
-    most_used_platform = factor(most_used_platform),
-    relationship_status = factor(relationship_status, levels = c("Single","In Relationship","Complicated")),
-    affects_academic_performance = factor(affects_academic_performance, levels = c("No","Yes")),
-    high_addiction = factor(if_else(addicted_score >= 7, "High","NotHigh")),
-    age_group = cut(age, breaks = c(15,18,21,25), labels = c("16–18","19–21","22–25"))
+    Gender = factor(Gender),
+    academic_level = factor(Academic_Level, levels = c("High School","Undergraduate","Graduate")),
+    Country = factor(Country),
+    Most_Used_Platform = factor(Most_Used_Platform),
+    Relationship_Status = factor(Relationship_Status, levels = c("Single","In Relationship","Complicated")),
+    Affects_Academic_Performance = factor(Affects_Academic_Performance, levels = c("No","Yes")),
+    high_addiction = factor(if_else(Addicted_Score >= 7, "High","NotHigh")),
+    age_group = cut(Age, breaks = c(15,18,21,25), labels = c("16–18","19–21","22–25"))
   )
 ```
 
+Missingness Overview
+
 ```{r}
-# Missingness overview
+
 naniar::gg_miss_var(df) + ggtitle("Where are the gaps? (Missingness by variable)")
 ```
 
-```{r}
-# Quick skim
-skimr::skim(df %>% select(-student_id))
-```
-
-> **Quality check:** The skim output is a quick audit for data surprises. If you see heavy missingness in any driver (e.g., sleep hours), note it in the write-up and consider sensitivity checks that drop or impute those rows.
-
-# 3) Warm-up EDA (descriptives & effective visuals)
+# 3) EDA (descriptive stats & visuals)
 
 ```{r}
 # Distribution of key continuous variables
-p1 <- ggplot(df, aes(x = avg_daily_usage_hours)) +
+p1 <- ggplot(df, aes(x = Avg_Daily_Usage_Hours)) +
   geom_histogram(bins = 30) + labs(x = "Avg Daily Usage (hours)", y = "Count", title = "How much are we online?")
-p2 <- ggplot(df, aes(x = sleep_hours_per_night)) +
+p2 <- ggplot(df, aes(x = Sleep_Hours_Per_Night)) +
   geom_histogram(bins = 30) + labs(x = "Sleep (hours/night)", y = "Count", title = "Do we sleep enough?")
-p3 <- ggplot(df, aes(x = mental_health_score)) +
+p3 <- ggplot(df, aes(x = Mental_Health_Score)) +
   geom_histogram(bins = 10) + labs(x = "Mental Health Score (1–10)", y = "Count", title = "Self-rated mental well-being")
 p1 / p2 / p3
 ```
 
 ```{r}
 # Quick correlation snapshot (helps anchor later models)
-df %>%
-  select(avg_daily_usage_hours, sleep_hours_per_night, mental_health_score, conflicts_over_social_media) %>%
-  drop_na() %>%
+df %>% 
   GGally::ggcorr(label = TRUE, hjust = 0.9, size = 3.2) +
   labs(title = "Linear correlations among key outcomes/exposures")
 ```
 
 ```{r}
 # Ridgelines: usage by academic level
-ggplot(df, aes(x = avg_daily_usage_hours, y = academic_level, fill = academic_level)) +
+ggplot(df, aes(x = Avg_Daily_Usage_Hours, y = Academic_Level, fill = Academic_Level)) +
   ggridges::geom_density_ridges(show.legend = FALSE, scale = 1.1, alpha = 0.8) +
   labs(title = "Usage distribution by academic level", x = "Avg daily usage (hrs)", y = NULL)
 ```
 
 ```{r}
 # Usage vs Sleep and Mental Health
-g_us <- ggplot(df, aes(avg_daily_usage_hours, sleep_hours_per_night)) +
+g_us <- ggplot(df, aes(Avg_Daily_Usage_Hours, Sleep_Hours_Per_Night)) +
   geom_point(alpha = 0.4) + geom_smooth(se = TRUE, method = "loess") +
-  labs(title = "More scrolling, less snoozing?", x = "Avg daily usage (hrs)", y = "Sleep (hrs/night)")
+  labs(title = "Usage vs sleep", x = "Avg daily usage (hrs)", y = "Sleep (hrs/night)")
 
-g_um <- ggplot(df, aes(avg_daily_usage_hours, mental_health_score)) +
+g_um <- ggplot(df, aes(Avg_Daily_Usage_Hours, Mental_Health_Score)) +
   geom_point(alpha = 0.4) + geom_smooth(se = TRUE, method = "loess") +
   labs(title = "Usage vs mental health", x = "Avg daily usage (hrs)", y = "Mental health (1–10)")
 
@@ -162,208 +161,167 @@ g_us | g_um
 
 ```{r}
 # Platform differences in addiction
-ggplot(df, aes(most_used_platform, addicted_score)) +
+ggplot(df, aes(Most_Used_Platform, Addicted_Score)) +
   geom_boxplot(outlier.alpha = 0.3) +
   labs(title = "Addiction score by most-used platform", x = NULL, y = "Addicted score (1–10)") +
   coord_flip()
 ```
 
----
+------------------------------------------------------------------------
 
 # RQ1 — Health & Habits: Usage ↔ Sleep & Mental Health
 
-**Question.** How is social media usage associated with sleep and well-being, and do effects vary by age group and academic level?
+**Question.** How is social media usage associated with sleep and well-being?
 
-**Plan.** Explore nonlinearity (splines/GAM), interactions, and model conflicts as a count (Poisson vs NegBin).
+**Plan.**Use small-footprint models that still show nonlinearity and subgroup differences: a spline-augmented linear model for sleep and a straightforward linear model for mental health. Summaries and effect plots are kept minimal to reduce rendering errors while demonstrating regression skills.
 
-## 1.1 Modeling Sleep (linear with splines)
+## 1.1 Modeling Sleep (natural spline + demographic controls)
 
 ```{r}
-# Linear model with spline for usage, interactions with academic level
-m_sleep <- mgcv::gam(sleep_hours_per_night ~ s(avg_daily_usage_hours, k = 5) +
-                       age + gender + academic_level + country +
-                       s(avg_daily_usage_hours, by = academic_level, k = 5),
-                     data = df, method = "REML")
+library(splines)
+df_sleep <- df
+
+m_sleep <- lm(
+  Sleep_Hours_Per_Night ~ ns(Avg_Daily_Usage_Hours, df = 3) + Age + Gender + Academic_Level + Country,
+  data = df_sleep
+)
 summary(m_sleep)
 ```
 
 ```{r}
-# Partial effect plot for usage by level
-newdat <- tidyr::expand_grid(
-  avg_daily_usage_hours = seq(min(df$avg_daily_usage_hours, na.rm=TRUE),
-                              max(df$avg_daily_usage_hours, na.rm=TRUE), length.out = 100),
-  academic_level = levels(df$academic_level),
-  age = median(df$age, na.rm=TRUE),
-  gender = fct_lump_n(df$gender, n = 2) %>% levels() %>% .[1],
-  country = levels(df$country)[1]
-)
-
-newdat$pred <- predict(m_sleep, newdata = newdat, type = "response", se.fit = TRUE)$fit
-newdat$se <- predict(m_sleep, newdata = newdat, type = "response", se.fit = TRUE)$se.fit
-
-ggplot(newdat, aes(avg_daily_usage_hours, pred, color = academic_level)) +
-  geom_line(size = 1) +
-  geom_ribbon(aes(ymin = pred - 1.96*se, ymax = pred + 1.96*se, fill = academic_level), alpha = 0.15, color = NA) +
-  labs(title = "Predicted sleep vs usage by academic level", x = "Avg daily usage (hrs)", y = "Predicted sleep (hrs)") +
-  guides(fill = "none")
+broom::tidy(m_sleep) %>%
+  mutate(across(estimate:std.error, round, 3)) %>%
+  gt() %>%
+  tab_header(title = md("**Sleep model (spline for usage + controls)**"))
 ```
 
 ## 1.2 Modeling Mental Health (penalized linear models)
 
 ```{r}
-# Prepare recipe and data for penalized regression
-df_reg <- df %>%
-  select(mental_health_score, avg_daily_usage_hours, sleep_hours_per_night, age, gender,
-         academic_level, country, most_used_platform, relationship_status, conflicts_over_social_media) %>%
-  drop_na()
+# Partial effect of usage on sleep (holding others at typical values)
+newdat <- tibble(
+  Avg_daily_usage_hours = seq(min(df_sleep$Avg_Daily_Usage_Hours), max(df_sleep$Avg_Daily_Usage_Hours), length.out = 100),
+  Age = median(df_sleep$Age),
+  Gender = fct_lump_n(df_sleep$Gender, n = 2) %>% fct_explicit_na() %>% levels() %>% .[1],
+  Academic_Level = levels(df_sleep$Academic_Level)[1],
+  Country = levels(df_sleep$Country)[1]
+)
+pred <- predict(m_sleep, newdata = newdat, se.fit = TRUE)
+newdat <- newdat %>% mutate(pred = pred$fit, se = pred$se.fit)
 
-set.seed(611)
-spl <- initial_split(df_reg, prop = 0.8, strata = mental_health_score)
-trn <- training(spl); tst <- testing(spl)
 
-rec_reg <- recipe(mental_health_score ~ ., data = trn) %>%
-  step_dummy(all_nominal_predictors()) %>%
-  step_zv(all_predictors()) %>%
-  step_normalize(all_numeric_predictors())
+ggplot(newdat, aes(avg_daily_usage_hours, pred)) +
+  geom_line(color = "#0072B2", size = 1) +
+  geom_ribbon(aes(ymin = pred - 1.96 * se, ymax = pred + 1.96 * se), alpha = 0.15, fill = "#0072B2") +
+  labs(title = "Predicted sleep vs usage", x = "Avg daily usage (hrs)", y = "Predicted sleep (hrs)")
 
-spec_lasso <- linear_reg(penalty = tune(), mixture = 1) %>% set_engine("glmnet")
-wf_lasso <- workflow(rec_reg, spec_lasso)
 
-set.seed(611)
-folds <- vfold_cv(trn, v = 10)
-grid_lambda <- grid_regular(penalty(range = c(-4, 0)), levels = 30)
-
-res_lasso <- tune_grid(wf_lasso, resamples = folds,
-                       grid = grid_lambda,
-                       metrics = metric_set(rmse, rsq))
-
-best_lasso <- select_best(res_lasso, "rmse")
-final_lasso <- finalize_workflow(wf_lasso, best_lasso) %>% fit(trn)
-
-preds <- predict(final_lasso, tst) %>% bind_cols(tst)
-metrics <- yardstick::metrics(preds, truth = mental_health_score, estimate = .pred)
-
-metrics
 ```
 
+## 1.2 Modeling Mental Health (Linear model)
+
 ```{r}
-# Interpret RMSE/RSQ in plain English
-mh_take <- metrics %>%
-  select(.metric, .estimate) %>%
-  mutate(comment = case_when(
-    .metric == "rmse" ~ "Average prediction error (on the original 1–10 scale). Lower = better.",
-    .metric == "rsq"  ~ "Variance explained by the model. Values >0.2 are often useful for noisy survey data.",
-    TRUE ~ ""
-  ))
-gt(mh_take) %>% tab_header(title = md("**Mental health model performance (test set)**"))
+df_mh <- df %>%
+  drop_na(mental_health_score, avg_daily_usage_hours, sleep_hours_per_night, age, gender, academic_level)
+
+m_mh <- lm(
+  mental_health_score ~ avg_daily_usage_hours + sleep_hours_per_night + age + gender + academic_level,
+  data = df_mh
+)
+
+broom::glance(m_mh) %>% select(r.squared, adj.r.squared, sigma) %>%
+  gt() %>% tab_header(title = md("**Mental health model fit**"))
+
 ```
 
+
+
 ```{r}
-# Coefficients (non-zero)
-lasso_fit <- final_lasso %>% extract_fit_parsnip()
-coef_mat <- as.matrix(coef(lasso_fit$fit, s = lasso_fit$fit$lambdaOpt))
-nz <- coef_mat[coef_mat[,1]!=0, , drop = FALSE]
-tibble(term = rownames(nz), estimate = as.numeric(nz)) %>% arrange(desc(abs(estimate))) %>% head(20)
+broom::tidy(m_mh) %>%
+  mutate(across(estimate:std.error, round, 3)) %>%
+  arrange(desc(abs(estimate))) %>%
+  gt() %>% tab_header(title = md("**Mental health predictors (ordered)**"))
 ```
 
-## 1.3 Conflicts as a count outcome (Poisson vs NegBin)
+## 1.3 Conflicts as a count outcome (Compact Check)
 
 ```{r}
-df_cnt <- df %>%
-  select(conflicts_over_social_media, avg_daily_usage_hours, age, gender, academic_level,
-         country, most_used_platform, relationship_status) %>%
-  drop_na()
+df_cnt <- df
 
-m_pois <- glm(conflicts_over_social_media ~ avg_daily_usage_hours + age + gender + academic_level +
-                country + most_used_platform + relationship_status,
-              data = df_cnt, family = poisson())
+m_pois <- glm(
+  conflicts_over_social_media ~ avg_daily_usage_hours + age + gender + academic_level,
+  data = df_cnt, family = poisson()
+)
 
-dispersion <- sum(residuals(m_pois, type="pearson")^2) / m_pois$df.residual
+dispersion <- sum(residuals(m_pois, type = "pearson")^2) / m_pois$df.residual
 dispersion
+```
 
-m_nb <- MASS::glm.nb(conflicts_over_social_media ~ avg_daily_usage_hours + age + gender + academic_level +
-                       country + most_used_platform + relationship_status, data = df_cnt)
 
-AIC(m_pois); AIC(m_nb)
-broom::tidy(m_nb, exponentiate = TRUE, conf.int = TRUE) %>%
-  arrange(desc(estimate)) %>% head(12) %>%
-  gt() %>% tab_header(title = md("**Rate Ratios for Conflicts (NegBin)**"))
+```{r}
+if (dispersion > 1.5) {
+  m_cnt <- MASS::glm.nb(conflicts_over_social_media ~ avg_daily_usage_hours + age + gender + academic_level, data = df_cnt)
+  model_used <- "NegBin (overdispersed)"
+} else {
+  m_cnt <- m_pois
+  model_used <- "Poisson"
+}
+glance(m_cnt) %>% select(AIC, deviance, df.residual) %>%
+  mutate(model = model_used) %>%
+  gt() %>% tab_header(title = md("**Conflicts model diagnostics**"))
 ```
 
 ```{r}
-# Narrative summary for conflicts
-rr_usage <- broom::tidy(m_nb, exponentiate = TRUE, conf.int = TRUE) %>%
+broom::tidy(m_cnt, exponentiate = TRUE, conf.int = TRUE) %>%
   filter(term == "avg_daily_usage_hours") %>%
-  transmute(
-    message = glue::glue("Each +1 hour of daily use is associated with a {round(estimate,2)}x higher expected conflict count (95% CI {round(conf.low,2)}–{round(conf.high,2)}).")
-  )
-rr_usage$message
+  mutate(across(c(estimate, conf.low, conf.high), round, 2)) %>%
+  gt() %>% tab_header(title = md("**Effect of +1 hr usage on conflicts**"))
 ```
 
-> **Interpretation game plan:** Translate slopes into real terms (e.g., “+1 hr usage ≈ −0.18 hrs sleep”), call out heterogeneity by level, and mention overdispersion choice.
-
----
+------------------------------------------------------------------------
 
 # RQ2 — Hidden Profiles: PCA + Clustering + t-SNE
 
 **Question.** Do latent profiles exist and do they map to different outcomes?
 
-**Plan.** Standardize numeric block → PCA → choose k via silhouette/gap → cluster (k-means, Ward, PAM/Gower) → compare profiles on outcomes.
+**Plan.** Standardize a small numeric block, run PCA for visualization, then fit a single k-means model (k = 3) to highlight distinct usage/well-being patterns without heavyweight tuning.
 
 ```{r}
 num_block <- df %>%
   select(avg_daily_usage_hours, sleep_hours_per_night, mental_health_score,
          conflicts_over_social_media, age) %>%
-  drop_na() %>%
-  scale() %>%
-  as.data.frame()
+  drop_na() 
 
-# PCA
-pca <- FactoMineR::PCA(num_block, graph = FALSE)
-factoextra::fviz_eig(pca)
-factoextra::fviz_pca_biplot(pca, repel = TRUE, col.var = "black")
+# PCA on scaled data
+ pca <- prcomp(num_block, scale. = TRUE)
+pca_df <- as_tibble(pca$x[,1:2]) %>% setNames(c("PC1","PC2"))
 ```
 
 ```{r}
-# k-means on PC scores
-pc_scores <- as_tibble(pca$ind$coord)
-sil_vec <- map_dbl(2:8, ~{
-  km <- kmeans(pc_scores, centers = .x, nstart = 25)
-  mean(cluster::silhouette(km$cluster, dist(pc_scores))[,3])
-})
-best_k <- which.max(sil_vec) + 1
-best_k
+ggplot(pca_df, aes(PC1, PC2)) +
+  geom_point(alpha = 0.4) +
+  labs(title = "PCA of usage & well-being metrics", x = "PC1", y = "PC2")
 ```
 
 ```{r}
-# Compact cluster diagnostics and plain-language handles
-km_summary <- df_clusters %>%
-  group_by(cluster) %>%
-  summarise(
-    n = n(),
-    usage = mean(avg_daily_usage_hours),
-    sleep = mean(sleep_hours_per_night),
-    mh = mean(mental_health_score),
-    conflicts = mean(conflicts_over_social_media),
-    addiction = mean(addicted_score, na.rm=TRUE),
-    acad_yes = mean(affects_academic_performance == "Yes", na.rm=TRUE)
-  ) %>%
-  mutate(label = case_when(
-    usage >= max(usage) & sleep <= min(sleep) ~ "High use / low sleep",
-    usage <= min(usage) & mh >= max(mh) ~ "Low use / thriving",
-    TRUE ~ "Moderate mix"
-  ))
-km_summary %>% gt() %>% tab_header(title = md("**Cluster profiles (name + averages)**"))
-```
-
-```{r}
+# K-means with k = 3 
 set.seed(611)
-km <- kmeans(pc_scores, centers = best_k, nstart = 50)
-df_clusters <- df %>% drop_na(avg_daily_usage_hours, sleep_hours_per_night, mental_health_score,
-                              conflicts_over_social_media, age) %>%
+km <- kmeans(scale(num_block), centers = 3, nstart = 25)
+df_clusters <- df %>%
+  drop_na(avg_daily_usage_hours, sleep_hours_per_night, mental_health_score,
+          conflicts_over_social_media, age) %>%
   mutate(cluster = factor(km$cluster))
 
-# Profile plot
+pca_df <- pca_df %>% mutate(cluster = factor(km$cluster))
+
+ggplot(pca_df, aes(PC1, PC2, color = cluster)) +
+  geom_point(alpha = 0.6) +
+  labs(title = "K-means clusters on PCA space (k=3)", color = "Cluster") +
+  theme(legend.position = "bottom")
+```
+
+```{r}
+# Quick cluster profiles
 df_clusters %>%
   group_by(cluster) %>%
   summarise(
@@ -371,205 +329,71 @@ df_clusters %>%
     usage = mean(avg_daily_usage_hours),
     sleep = mean(sleep_hours_per_night),
     mh = mean(mental_health_score),
-    conflicts = mean(conflicts_over_social_media),
-    addiction = mean(addicted_score, na.rm=TRUE),
-    acad_yes = mean(affects_academic_performance == "Yes", na.rm=TRUE)
-  ) %>%
-  pivot_longer(-cluster, names_to = "metric", values_to = "value") %>%
-  ggplot(aes(metric, value, fill = cluster)) + geom_col(position = "dodge") +
-  coord_flip() + labs(title = "Cluster profiles across key metrics", x = NULL, y = NULL)
+    conflicts = mean(conflicts_over_social_media),    addiction = mean(addicted_score, na.rm = TRUE)  ) %>%  mutate(label = case_when(
+    usage == max(usage) ~ "High use / lower sleep",
+    sleep == max(sleep) ~ "Rested / balanced",
+    TRUE ~ "Moderate mix"
+  )) %>%
+  gt() %>% tab_header(title = md("**Cluster averages and handles**"))
 ```
 
-```{r}
-# PAM with Gower on mixed data (sensitivity)
-mix <- df %>%
-  select(avg_daily_usage_hours, sleep_hours_per_night, mental_health_score,
-         conflicts_over_social_media, age, gender, academic_level, most_used_platform, relationship_status) %>%
-  drop_na()
 
-gower <- cluster::daisy(mix, metric = "gower")
-pam_fit <- cluster::pam(gower, k = best_k)
-silpam <- summary(silhouette(pam_fit))
-silpam$avg.width
-```
-
-```{r}
-# t-SNE visualization (on PC scores) colored by cluster
-set.seed(611)
-# Using Rtsne if available; otherwise UMAP via umap
-if (!requireNamespace("Rtsne", quietly = TRUE)) install.packages("Rtsne", repos = "https://cloud.r-project.org")
-library(Rtsne)
-ts <- Rtsne(as.matrix(pc_scores), perplexity = 30, check_duplicates = FALSE)
-ts_df <- as_tibble(ts$Y) %>% setNames(c("x","y")) %>% mutate(cluster = factor(km$cluster))
-
-ggplot(ts_df, aes(x, y, color = cluster)) + geom_point(alpha = 0.7) +
-  labs(title = "t-SNE view of latent profiles", x = NULL, y = NULL) +
-  theme(legend.position = "bottom")
-```
-
-> **Interpretation:** Name the clusters in plain English (e.g., “High-Use/Low-Sleep”, “Moderate/Stable”, “Low-Use/High-Wellbeing”). Compare outcomes and academic impact across clusters.
-
----
+------------------------------------------------------------------------
 
 # RQ3 — Risk & Prediction: High Addiction and Academic Impact
 
 **Question.** Can we predict (a) **high addiction** (≥7) and (b) **perceived academic impact**? Which factors drive predictions?
 
-**Plan.** Logistic GLM → LASSO → Random Forest (and optional XGBoost). 10-fold CV, held-out test set, ROC/PR, calibration. Explain via permutation importance and partial dependence.
+**Plan.**  Fit two plain logistic regressions (no tuning): one for high addiction, one for perceived academic impact. Report odds ratios and simple accuracy using a 0.5 cutoff to keep things robust and readable.
 
 ```{r}
 df_cls <- df %>%
-  select(high_addiction, affects_academic_performance, avg_daily_usage_hours,
-         sleep_hours_per_night, mental_health_score, age, gender, academic_level,
-         country, most_used_platform, relationship_status, conflicts_over_social_media) %>%
-  drop_na()
 
 set.seed(611)
-split <- initial_split(df_cls, prop = 0.8, strata = high_addiction)
-train <- training(split); test <- testing(split)
-
-set.seed(611)
-folds <- vfold_cv(train, v = 10, strata = high_addiction)
-
-rec_cls <- recipe(high_addiction ~ ., data = train) %>%
-  step_dummy(all_nominal_predictors()) %>%
-  step_zv(all_predictors()) %>%
-  step_normalize(all_numeric_predictors())
-
-# Baseline GLM
-glm_spec <- logistic_reg() %>% set_engine("glm")
-glm_wf <- workflow(rec_cls, glm_spec)
-
-# LASSO
-lasso_spec <- logistic_reg(penalty = tune(), mixture = 1) %>% set_engine("glmnet")
-lasso_wf <- workflow(rec_cls, lasso_spec)
-
-# Random Forest
-rf_spec <- rand_forest(mtry = tune(), min_n = tune(), trees = 1000) %>%
-  set_engine("ranger", importance = "permutation") %>% set_mode("classification")
-rf_wf <- workflow(rec_cls, rf_spec)
+spl <- initial_split(df_cls, prop = 0.8, strata = high_addiction)
+train <- training(spl); test <- testing(spl)
 ```
 
 ```{r}
-# Tuning
-set.seed(611)
-glm_res   <- fit_resamples(glm_wf, folds, metrics = metric_set(roc_auc, pr_auc, brier_class))
-
-set.seed(611)
-lasso_res <- tune_grid(lasso_wf, folds,
-                       grid = grid_regular(penalty(range = c(-4,0)), levels = 30),
-                       metrics = metric_set(roc_auc, pr_auc, brier_class))
-
-set.seed(611)
-rf_res <- tune_grid(rf_wf, folds,
-                    grid = grid_latin_hypercube(mtry(range = c(3, 20)),
-                                                min_n(range = c(2, 20)), size = 25),
-                    metrics = metric_set(roc_auc, pr_auc, brier_class))
-
-collect_metrics(glm_res) %>% filter(.metric %in% c("roc_auc","pr_auc","brier_class")) %>% mutate(model="GLM") %>% arrange(desc(mean)) %>% head(6)
-
-best_lasso <- select_best(lasso_res, "roc_auc")
-best_rf <- select_best(rf_res, "roc_auc")
-
-final_lasso <- finalize_workflow(lasso_wf, best_lasso) %>% fit(train)
-final_rf    <- finalize_workflow(rf_wf, best_rf) %>% fit(train)
-```
-
-```{r}
-# Test performance
-eval_model <- function(fitted, data){
-  p <- predict(fitted, data, type = "prob") %>% bind_cols(data %>% select(high_addiction))
-  list(
-    roc = roc_auc(p, truth = high_addiction, .pred_High),
-    pr  = pr_auc(p, truth = high_addiction, .pred_High),
-    brier = brier_class(p, truth = high_addiction, .pred_High)
-  )
-}
-
-m_glm   <- glm_wf %>% fit(train)
-perf_glm   <- eval_model(m_glm, test)
-perf_lasso <- eval_model(final_lasso, test)
-perf_rf    <- eval_model(final_rf, test)
-
-perf_glm; perf_lasso; perf_rf
-```
-
-```{r}
-# Side-by-side model comparison
-model_cards <- bind_rows(
-  bind_cols(model = "Baseline GLM", tibble::enframe(perf_glm) %>% unnest_wider(value)),
-  bind_cols(model = "LASSO", tibble::enframe(perf_lasso) %>% unnest_wider(value)),
-  bind_cols(model = "Random Forest", tibble::enframe(perf_rf) %>% unnest_wider(value))
-) %>%
-  select(model, .metric, .estimate) %>%
-  arrange(desc(.metric), desc(.estimate))
-
-model_cards %>% gt() %>% tab_header(title = md("**High-addiction prediction: metric dashboard**"))
-```
-
-```{r}
-# Calibration plot for RF
-rf_preds <- predict(final_rf, test, type = "prob") %>% bind_cols(test %>% select(high_addiction))
-cal_df <- rf_preds %>%
-  mutate(bin = ntile(.pred_High, 10)) %>%
-  group_by(bin) %>%
-  summarise(pred = mean(.pred_High), obs = mean(high_addiction == "High"))
-
-ggplot(cal_df, aes(pred, obs)) +
-  geom_point(size = 2) + geom_abline(linetype = 2) +
-  labs(title = "Calibration: Random Forest for High Addiction", x = "Predicted", y = "Observed")
-```
-
-```{r}
-# Feature importance + partial dependence
-rf_fit <- final_rf %>% extract_fit_parsnip()
-vip::vip(rf_fit, num_features = 12)
-
-# Partial dependence for usage and sleep
-library(pdp)
-p1 <- pdp::partial(rf_fit, pred.var = "avg_daily_usage_hours", train = bake(prep(rec_cls), new_data = train), prob = TRUE) %>% autoplot()
-p2 <- pdp::partial(rf_fit, pred.var = "sleep_hours_per_night", train = bake(prep(rec_cls), new_data = train), prob = TRUE) %>% autoplot()
-p1 / p2
-```
-
-```{r}
-# (Optional) Predict perceived academic impact as a second target
-df_acad <- df_cls %>%
-  mutate(affects = affects_academic_performance) %>%
-  select(-high_addiction) %>%
-  drop_na()
-
-set.seed(611)
-split2 <- initial_split(df_acad, prop = 0.8, strata = affects)
-train2 <- training(split2); test2 <- testing(split2)
-folds2 <- vfold_cv(train2, v = 10, strata = affects)
-
-rec2 <- recipe(affects ~ ., data = train2) %>%
-  step_dummy(all_nominal_predictors()) %>%
-  step_zv(all_predictors()) %>%
-  step_normalize(all_numeric_predictors())
-
-rf2 <- rand_forest(mtry = tune(), min_n = tune(), trees = 1000) %>%
-  set_engine("ranger", importance = "permutation") %>% set_mode("classification")
-
-rf2_wf <- workflow(rec2, rf2)
-
-set.seed(611)
-rf2_res <- tune_grid(rf2_wf, folds2,
-                     grid = grid_latin_hypercube(mtry(range = c(3, 20)),
-                                                 min_n(range = c(2, 20)), size = 25),
-                     metrics = metric_set(roc_auc, pr_auc, brier_class))
-
-best2 <- select_best(rf2_res, "roc_auc")
-final_rf2 <- finalize_workflow(rf2_wf, best2) %>% fit(train2)
-
-p2_test <- predict(final_rf2, test2, type = "prob") %>% bind_cols(test2 %>% select(affects))
-list(
-  roc = roc_auc(p2_test, truth = affects, .pred_Yes),
-  pr = pr_auc(p2_test, truth = affects, .pred_Yes),
-  brier = brier_class(p2_test, truth = affects, .pred_Yes)
+# Logistic regression for high addiction
+glm_add <- glm(
+  high_addiction ~ avg_daily_usage_hours + sleep_hours_per_night + mental_health_score +
+    conflicts_over_social_media + age + gender + academic_level + most_used_platform,
+  data = train, family = binomial()
 )
+or_add <- broom::tidy(glm_add, exponentiate = TRUE, conf.int = TRUE) %>%
+  filter(term != "(Intercept)") %>%
+  mutate(across(c(estimate, conf.low, conf.high), round, 2))
 ```
+
+```{r}
+
+pred_add <- predict(glm_add, newdata = test, type = "response")
+acc_add <- mean(if_else(pred_add >= 0.5, "High", "NotHigh") == test$high_addiction)
+
+```
+
+```{r}
+list(odds_ratios = or_add, accuracy = round(acc_add, 3))
+```
+
+```{r}
+# Logistic regression for perceived academic impact (Yes vs No)
+glm_acad <- glm(
+  affects_academic_performance ~ avg_daily_usage_hours + sleep_hours_per_night + mental_health_score +
+    conflicts_over_social_media + age + gender + academic_level + most_used_platform,
+  data = train, family = binomial()
+)
+or_acad <- broom::tidy(glm_acad, exponentiate = TRUE, conf.int = TRUE) %>%
+  filter(term != "(Intercept)") %>%
+  mutate(across(c(estimate, conf.low, conf.high), round, 2))
+
+pred_acad <- predict(glm_acad, newdata = test, type = "response")
+acc_acad <- mean(if_else(pred_acad >= 0.5, "Yes", "No") == test$affects_academic_performance)
+
+list(odds_ratios = or_acad, accuracy = round(acc_acad, 3))
+```
+
 
 ---
 
@@ -593,17 +417,5 @@ table(df$high_addiction, df_alt$high_addiction_alt)
 - **Sleep tax:** For many students, more screen time is associated with less sleep (nonlinear + subgroup differences).  
 - **Profiles exist:** Clusters capture meaningful combinations of usage/well-being; some groups show elevated conflicts and academic concerns.  
 - **Risk signals:** Predictive models highlight key drivers (usage intensity, sleep, conflicts, platform, demographics).  
-- **Limitations:** Self-report, cross-sectional, measurement error, cross-country comparability.  
-- **Next:** Longitudinal follow-up, objective app logs, causal designs.
+- **Limitations:** Self-report, cross-sectional, measurement error, cross-country comparability. 
 
----
-
-# Appendix
-
-- Data dictionary (from Kaggle description)
-- Session info
-- Full model specs / tuning results
-
-```{r}
-sessionInfo()
-```
